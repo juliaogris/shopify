@@ -19,6 +19,7 @@ type config struct {
     ClientSecret string `help:"shopify app API secret"`
     Scope        string `help:"shopify app scope" default:"read_products,write_products,read_orders,write_orders"`
     BaseURL      string `help:"shopify app OAuth redirect base URL (no path)"`
+    Address      string `help:"" default:":8080"`
 }
 
 type server struct {
@@ -27,10 +28,10 @@ type server struct {
 }
 
 func newServer(cfg config) (*server, error) {
-    oauthCallbackPath := "/oauth_callback"
+    oauthCallbackPath := "oauth_callback"
     installShopifyAppPath := "/install_shopify_app"
     callbackURL, err := url.Parse(cfg.BaseURL)
-    callbackURL.JoinPath(oauthCallbackPath)
+    callbackURL = callbackURL.JoinPath(oauthCallbackPath)
     fmt.Println("redirect URL", callbackURL.String())
     if err != nil {
         return nil, err
@@ -111,7 +112,7 @@ func main() {
         os.Exit(1)
     }
     fmt.Println("starting server on http://localhost:8080")
-    if err := http.ListenAndServe(":8080", server); err != nil {
+    if err := http.ListenAndServe(cfg.Address, server); err != nil {
         fmt.Println(err)
         os.Exit(1)
     }
