@@ -28,7 +28,7 @@ type server struct {
 }
 
 func newServer(cfg config) (*server, error) {
-    oauthCallbackPath := "oauth_callback"
+    oauthCallbackPath := "/oauth_callback"
     installShopifyAppPath := "/install_shopify_app"
     callbackURL, err := url.Parse(cfg.BaseURL)
     callbackURL = callbackURL.JoinPath(oauthCallbackPath)
