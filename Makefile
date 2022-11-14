@@ -77,18 +77,23 @@ docker-run: docker-build
 # --- Release -------------------------------------------------------------------
 DOCKER_LOGIN = printenv DOCKER_PASSWORD | docker login --username "$(DOCKER_USERNAME)" --password-stdin
 
-release: nexttag ## Tag and release binaries for different OS on GitHub release
-	git tag $(NEXTTAG)
-	git push origin $(NEXTTAG)
+release: release-tag ## Tag and release binaries for different OS on GitHub release
+	git tag $(RELEASE_TAG)
+	git push origin $(RELEASE_TAG)
 	goreleaser release --rm-dist
 	[ -z "$(DOCKER_PASSWORD)" ] || $(DOCKER_LOGIN)
+	-docker buildx rm builder
 	docker buildx create --use --name builder
 	docker buildx build --push --build-arg=VERSION=$(VERSION) --tag julia/shopify:$(VERSION) --tag julia/shopify:latest --platform linux/amd64,linux/arm/v7 .
 
-nexttag:
-	$(eval NEXTTAG := $(shell $(NEXTTAG_CMD)))
+# release-tag sets RELEASE_TAG to the next highest semver patch version
+# if RELEASE_TAG is not already set. For example, if the highest version
+# tag is v0.2.3, the next tag will be v0.2.4. If no version tags are set,
+# v0.0.1 will be the release tag.
+release-tag:
+	$(if $(RELEASE_TAG),,$(eval RELEASE_TAG := $(shell $(NEXTTAG_CMD))))
 
-.PHONY: nexttag release
+.PHONY: release-tag release
 
 define NEXTTAG_CMD
 { git tag --list --merged HEAD --sort=-v:refname; echo v0.0.0; }
