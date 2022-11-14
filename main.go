@@ -97,6 +97,7 @@ func main() {
     }
     cfg := config{}
     _ = kong.Parse(&cfg, opts...)
+    fmt.Printf("%#v\n", cfg)
     server := newServer(cfg)
     fmt.Println("starting server on http://localhost:8080")
     if err := http.ListenAndServe(":8080", server); err != nil {
