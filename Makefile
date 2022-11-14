@@ -84,7 +84,7 @@ release: release-tag ## Tag and release binaries for different OS on GitHub rele
 	[ -z "$(DOCKER_PASSWORD)" ] || $(DOCKER_LOGIN)
 	-docker buildx rm builder
 	docker buildx create --use --name builder
-	docker buildx build --push --build-arg=VERSION=$(VERSION) --tag julia/shopify:$(VERSION) --tag julia/shopify:latest --platform linux/amd64,linux/arm/v7 .
+	docker buildx build --push --build-arg=VERSION=$(RELEASE_TAG) --tag julia/shopify:$(RELEASE_TAG) --tag julia/shopify:latest --platform linux/amd64,linux/arm/v7 .
 
 # release-tag sets RELEASE_TAG to the next highest semver patch version
 # if RELEASE_TAG is not already set. For example, if the highest version
