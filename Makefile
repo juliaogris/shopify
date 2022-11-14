@@ -62,12 +62,28 @@ lint: ## Lint go source code
 
 .PHONY: lint
 
+# --- Docker -------------------------------------------------------------------
+docker-build:
+	docker build \
+		--build-arg=VERSION=$(VERSION) \
+		--tag shopify:latest \
+		.
+
+docker-run: docker-build
+	docker run --rm -it -p8080:8080 shopify:latest
+
+.PHONY: docker-build docker-run
+
 # --- Release -------------------------------------------------------------------
+DOCKER_LOGIN = printenv DOCKER_PASSWORD | docker login --username "$(DOCKER_USERNAME)" --password-stdin
+
 release: nexttag ## Tag and release binaries for different OS on GitHub release
 	git tag $(NEXTTAG)
 	git push origin $(NEXTTAG)
-	[ -z "$(CI)" ] || GITHUB_TOKEN=$$(.github/scripts/app_token) || exit 1; \
 	goreleaser release --rm-dist
+	[ -z "$(DOCKER_PASSWORD)" ] || $(DOCKER_LOGIN)
+	docker buildx create --use --name builder
+	docker buildx build --push --build-arg=VERSION=$(VERSION) --tag julia/shopify:$(VERSION) --tag julia/shopify:latest --platform linux/amd64,linux/arm/v7 .
 
 nexttag:
 	$(eval NEXTTAG := $(shell $(NEXTTAG_CMD)))
