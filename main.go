@@ -71,7 +71,7 @@ func (s *server) app(appName string) (goshopify.App, bool) {
 func (s *server) makeRedirectURL(appName string) string {
     u := *s.redirectURL
     q := u.Query()
-    q.Set("name", appName)
+    q.Set("app", appName)
     u.RawQuery = q.Encode()
     return u.String()
 }
