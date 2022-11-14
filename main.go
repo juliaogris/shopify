@@ -5,8 +5,8 @@ import (
     "log"
     "net/http"
     "net/http/httputil"
+    "net/url"
     "os"
-    "path"
 
     "github.com/alecthomas/kong"
     goshopify "github.com/bold-commerce/go-shopify/v3"
@@ -17,7 +17,7 @@ var version string = "v0.0.0-unset"
 type config struct {
     ClientID     string `help:"shopify app API key"`
     ClientSecret string `help:"shopify app API secret"`
-    Scope        string `help:"shopify app scope" default:"read_products,write_products,read_orders,write_products"`
+    Scope        string `help:"shopify app scope" default:"read_products,write_products,read_orders,write_orders"`
     BaseURL      string `help:"shopify app OAuth redirect base URL (no path)"`
 }
 
@@ -26,15 +26,21 @@ type server struct {
     mux *http.ServeMux
 }
 
-func newServer(cfg config) *server {
+func newServer(cfg config) (*server, error) {
     oauthCallbackPath := "/oauth_callback"
     installShopifyAppPath := "/install_shopify_app"
+    callbackURL, err := url.Parse(cfg.BaseURL)
+    callbackURL.JoinPath(oauthCallbackPath)
+    fmt.Println("redirect URL", callbackURL.String())
+    if err != nil {
+        return nil, err
+    }
 
     s := &server{
         app: goshopify.App{
             ApiKey:      cfg.ClientID,
             ApiSecret:   cfg.ClientSecret,
-            RedirectUrl: path.Join(cfg.BaseURL, oauthCallbackPath),
+            RedirectUrl: callbackURL.String(),
             Scope:       cfg.Scope,
         },
         mux: http.NewServeMux(),
@@ -44,7 +50,7 @@ func newServer(cfg config) *server {
     s.mux.HandleFunc("/version", s.version)
     s.mux.HandleFunc("/", s.logAll)
 
-    return s
+    return s, err
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +62,7 @@ func (s *server) installShopifyApp(w http.ResponseWriter, r *http.Request) {
     shopName := r.URL.Query().Get("shop")
     state := "nonce"
     authUrl := s.app.AuthorizeUrl(shopName, state)
+    fmt.Println()
     http.Redirect(w, r, authUrl, http.StatusFound)
 }
 
@@ -98,7 +105,11 @@ func main() {
     cfg := config{}
     _ = kong.Parse(&cfg, opts...)
     fmt.Printf("%#v\n", cfg)
-    server := newServer(cfg)
+    server, err := newServer(cfg)
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
     fmt.Println("starting server on http://localhost:8080")
     if err := http.ListenAndServe(":8080", server); err != nil {
         fmt.Println(err)
