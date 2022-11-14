@@ -5,7 +5,7 @@ This project is a most basic shopify OAuth demo with a docker image on
 
 **Deploy** this app to your own domain, e.g. yourdomain.com. 
 
-Setup a **Custom Shopify App**  in the[shopify patner](https://www.shopify.com/partners) settings.
+Setup a **Custom Shopify App**  in the [shopify patner](https://www.shopify.com/partners) settings.
 For Custom Apps, there has to be a 1:1 mapping between custom app and a given store:
 
 1. Click `Create App`
@@ -14,10 +14,10 @@ For Custom Apps, there has to be a 1:1 mapping between custom app and a given st
 Wire the correct **OAuth URLs** for this demo server:
 
 1. Navigate to `App Setup` on left side panel
-2. Under `App URL` enter `<your-base-url>/auth?app=<yourapp-name>`.
-   e.g. `https://yourdomain.com/auth?app=yourapp-target-store`.
-3. Under `Allowed redirection URL(s)` enter `<your-base-url>/redirect?app=<yourapp-name>` 
-   e.g. `https://yourdomain.com/redirect?app=yourapp-target-store`.
+2. Under `App URL` enter `<your-base-url>/auth?app=<yourapp-name>`.  
+   E.g. `https://yourdomain.com/auth?app=yourapp-target-store`.
+3. Under `Allowed redirection URL(s)` enter `<your-base-url>/redirect?app=<yourapp-name>`  
+   E.g. `https://yourdomain.com/redirect?app=yourapp-target-store`.
 
 
 Copy `ClientID` and `ClientSecret` and register with server:
@@ -27,6 +27,7 @@ Copy `ClientID` and `ClientSecret` and register with server:
  `<your-base-url>/new`
 with a JSON payload encoding the app's `name`, `clientID`, `clientSecret` and desired `scope`,
 e.g.
+
 
     curl https://yourdomain.com/new -d '{
         "name": "yourapp-target-store",
