@@ -1,12 +1,13 @@
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "log"
     "net/http"
-    "net/http/httputil"
     "net/url"
     "os"
+    "sync"
 
     "github.com/alecthomas/kong"
     goshopify "github.com/bold-commerce/go-shopify/v3"
@@ -15,61 +16,102 @@ import (
 var version string = "v0.0.0-unset"
 
 type config struct {
-    ClientID     string `help:"shopify app API key"`
-    ClientSecret string `help:"shopify app API secret"`
-    Scope        string `help:"shopify app scope" default:"read_products,write_products,read_orders,write_orders"`
-    BaseURL      string `help:"shopify app OAuth redirect base URL (no path)"`
-    Address      string `help:"" default:":8080"`
+    Address string  `help:"" default:":8080"`
+    BaseURL url.URL `help:"base URL used in redirect"`
 }
 
 type server struct {
-    app goshopify.App
-    mux *http.ServeMux
+    locker      *sync.RWMutex
+    apps        map[string]goshopify.App
+    mux         *http.ServeMux
+    redirectURL *url.URL
 }
 
-func newServer(cfg config) (*server, error) {
-    oauthCallbackPath := "/oauth_callback"
-    installShopifyAppPath := "/install_shopify_app"
-    callbackURL, err := url.Parse(cfg.BaseURL)
-    callbackURL = callbackURL.JoinPath(oauthCallbackPath)
-    fmt.Println("redirect URL", callbackURL.String())
-    if err != nil {
-        return nil, err
-    }
+type App struct {
+    Name         string
+    ClientID     string
+    ClientSecret string
+    Scope        string
+}
 
+func newServer(cfg config) *server {
+    redirectPath := "/redirect"
     s := &server{
-        app: goshopify.App{
-            ApiKey:      cfg.ClientID,
-            ApiSecret:   cfg.ClientSecret,
-            RedirectUrl: callbackURL.String(),
-            Scope:       cfg.Scope,
-        },
-        mux: http.NewServeMux(),
+        locker:      &sync.RWMutex{},
+        apps:        map[string]goshopify.App{},
+        mux:         http.NewServeMux(),
+        redirectURL: cfg.BaseURL.JoinPath(redirectPath),
     }
-    s.mux.HandleFunc(installShopifyAppPath, s.installShopifyApp)
-    s.mux.HandleFunc(oauthCallbackPath, s.oauthCallback)
+    s.mux.HandleFunc("/auth", s.handleAuth)
+    s.mux.HandleFunc(redirectPath, s.handleRedirect)
+    s.mux.HandleFunc("/new", s.handleNew)
     s.mux.HandleFunc("/version", s.version)
-    s.mux.HandleFunc("/", s.logAll)
+    s.mux.HandleFunc("/", s.handleNoMatch)
 
-    return s, err
+    return s
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     s.mux.ServeHTTP(w, r)
 }
 
-// installShopifyApp redirects to an oauth-authorize url for the app.
-func (s *server) installShopifyApp(w http.ResponseWriter, r *http.Request) {
+func (s *server) setApp(appName string, app goshopify.App) {
+    s.locker.Lock()
+    defer s.locker.Unlock()
+    s.apps[appName] = app
+}
+
+func (s *server) app(appName string) (goshopify.App, bool) {
+    s.locker.RLock()
+    defer s.locker.RUnlock()
+    app, ok := s.apps[appName]
+    return app, ok
+}
+
+func (s *server) makeRedirectURL(appName string) string {
+    u := *s.redirectURL
+    q := u.Query()
+    q.Set("name", appName)
+    u.RawQuery = q.Encode()
+    return u.String()
+}
+
+// handleAuth redirects to an oauth-authorize url for the app.
+func (s *server) handleAuth(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(os.Stdout, "auth: url: %s method: %s\n", r.URL.String(), r.Method)
+    if r.Method != http.MethodGet {
+        http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+        return
+    }
+    appName := r.URL.Query().Get("app")
+    app, ok := s.app(appName)
+    if !ok {
+        msg := fmt.Sprintf("app %q not found. create new app at '/new'", appName)
+        http.Error(w, msg, http.StatusBadRequest)
+        return
+    }
     shopName := r.URL.Query().Get("shop")
     state := "nonce"
-    authUrl := s.app.AuthorizeUrl(shopName, state)
+    authUrl := app.AuthorizeUrl(shopName, state)
     fmt.Println()
     http.Redirect(w, r, authUrl, http.StatusFound)
 }
 
-// oauthCallback fetches a permanent access token in the callback
-func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
-    if ok, _ := s.app.VerifyAuthorizationURL(r.URL); !ok {
+// handleRedirect fetches a permanent access token in the callback
+func (s *server) handleRedirect(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(os.Stdout, "redirect: url: %s method: %s\n", r.URL.String(), r.Method)
+    if r.Method != http.MethodGet {
+        http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+        return
+    }
+    appName := r.URL.Query().Get("app")
+    app, ok := s.app(appName)
+    if !ok {
+        msg := fmt.Sprintf("app %q not found. create new app at '/new'", appName)
+        http.Error(w, msg, http.StatusBadRequest)
+        return
+    }
+    if ok, _ := app.VerifyAuthorizationURL(r.URL); !ok {
         http.Error(w, "Invalid Signature", http.StatusUnauthorized)
         return
     }
@@ -77,7 +119,7 @@ func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
     query := r.URL.Query()
     shopName := query.Get("shop")
     code := query.Get("code")
-    token, err := s.app.GetAccessToken(shopName, code)
+    token, err := app.GetAccessToken(shopName, code)
     if err != nil {
         log.Println("cannot get access token", err)
         return
@@ -87,14 +129,41 @@ func (s *server) oauthCallback(w http.ResponseWriter, r *http.Request) {
     // Do something with the token, like store it in a DB.
 }
 
+// handleRedirect fetches a permanent access token in the callback
+func (s *server) handleNew(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(os.Stdout, "new: url: %s method: %s\n", r.URL.String(), r.Method)
+    if r.Method != http.MethodPost {
+        http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+        return
+    }
+    app := App{}
+    err := json.NewDecoder(r.Body).Decode(&app)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    if app.Name == "" || app.ClientID == "" || app.ClientSecret == "" || app.Scope == "" {
+        msg := `"name", "clientID", "clientSecret" and "scope" cannot be empty`
+        http.Error(w, msg, http.StatusBadRequest)
+        return
+    }
+    shopifyApp := goshopify.App{
+        ApiKey:      app.ClientID,
+        ApiSecret:   app.ClientSecret,
+        Scope:       app.Scope,
+        RedirectUrl: s.makeRedirectURL(app.Name),
+    }
+    s.setApp(app.Name, shopifyApp)
+    fmt.Println("successfully added", app.Name)
+    fmt.Fprintln(w, "successfully added", app.Name)
+}
+
 func (s *server) version(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintln(w, "version", version)
 }
 
-func (s *server) logAll(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("logAll:")
-    b, _ := httputil.DumpRequest(r, true)
-    fmt.Fprintf(os.Stdout, "%s\n", b)
+func (s *server) handleNoMatch(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(os.Stdout, "no-math: url: %s method: %s\n", r.URL.String(), r.Method)
     http.NotFound(w, r)
 }
 
@@ -106,11 +175,7 @@ func main() {
     cfg := config{}
     _ = kong.Parse(&cfg, opts...)
     fmt.Printf("%#v\n", cfg)
-    server, err := newServer(cfg)
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
+    server := newServer(cfg)
     fmt.Println("starting server on http://localhost:8080")
     if err := http.ListenAndServe(cfg.Address, server); err != nil {
         fmt.Println(err)
