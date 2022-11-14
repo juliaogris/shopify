@@ -126,6 +126,7 @@ func (s *server) handleRedirect(w http.ResponseWriter, r *http.Request) {
     }
 
     fmt.Println("token", token)
+    fmt.Fprintf(w, "%q connected successfully.\n", appName)
     // Do something with the token, like store it in a DB.
 }
 
