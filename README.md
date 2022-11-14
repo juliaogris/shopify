@@ -43,9 +43,10 @@ Last create a **Single Merchant Install Link**
 4. Enter shop URL (https://<TARGET-SHOP>.myshopify.com)
 5. Copy Install URL
 
-When a person with admin access to `TARGET-SHOP` clicks the Install URL
-this shopify server should print your permanent access token in the
-logs or other errors / problems.
+When a person with admin access to `TARGET-SHOP` clicks the Install link
+and after review the `Install app` button this shopify server should
+print your permanent access token in the logs or other errors /
+problems.
 
 All going well the clicked installation link will eventually respond with
 
