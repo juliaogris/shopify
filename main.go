@@ -165,7 +165,9 @@ func (s *server) version(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleNoMatch(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(os.Stdout, "no-math: url: %s method: %s\n", r.URL.String(), r.Method)
-    http.NotFound(w, r)
+    msg := `valid end points are "/new", "/auth" and "/redirect"
+Check the docs at: https://github.com/juliaogris/shopify`
+    http.Error(w, msg, http.StatusNotFound)
 }
 
 func main() {
