@@ -26,15 +26,16 @@ Copy `ClientID` and `ClientSecret` and register with server:
 2. Copy `ClientID` and `ClientSecret` and create and HTTP POST request to
  `<your-base-url>/new` with a JSON payload encoding the app's `name`, `clientID`, `clientSecret` and desired `scope`, e.g.
 
+```
+curl https://yourdomain.com/new -d '{
+  "name": "yourapp-target-store",
+  "clientID": "34ad8fcafecafecafecafecafecafe679",
+  "clientSecret": "78b29ecafecafecafecafecafecafe56bf0",
+  "scope": "read_orders,write_orders,read_products,write_products"
+}'
+```
 
-      curl https://yourdomain.com/new -d '{
-          "name": "yourapp-target-store",
-          "clientID": "34ad8fcafecafecafecafecafecafe679",
-          "clientSecret": "78b29ecafecafecafecafecafecafe56bf0",
-          "scope": "read_orders,write_orders,read_products,write_products"
-      }'
-
-Last create a *Single Merchant Install Link*
+Last create a **Single Merchant Install Link**
 
 1. Navigate to `Distribution` on left side panel
 2. Click `Choose Distribution`
