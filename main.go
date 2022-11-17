@@ -25,6 +25,7 @@ type server struct {
     apps        map[string]goshopify.App
     mux         *http.ServeMux
     redirectURL *url.URL
+    authURL     *url.URL
 }
 
 type App struct {
@@ -36,13 +37,15 @@ type App struct {
 
 func newServer(cfg config) *server {
     redirectPath := "/redirect"
+    authPath := "/auth"
     s := &server{
         locker:      &sync.RWMutex{},
         apps:        map[string]goshopify.App{},
         mux:         http.NewServeMux(),
         redirectURL: cfg.BaseURL.JoinPath(redirectPath),
+        authURL:     cfg.BaseURL.JoinPath(authPath),
     }
-    s.mux.HandleFunc("/auth", s.handleAuth)
+    s.mux.HandleFunc(authPath, s.handleAuth)
     s.mux.HandleFunc(redirectPath, s.handleRedirect)
     s.mux.HandleFunc("/new", s.handleNew)
     s.mux.HandleFunc("/version", s.version)
@@ -155,7 +158,14 @@ func (s *server) handleNew(w http.ResponseWriter, r *http.Request) {
         RedirectUrl: s.makeRedirectURL(app.Name),
     }
     s.setApp(app.Name, shopifyApp)
+    rawQuery := "app=" + url.QueryEscape(app.Name)
+    authURL := *s.authURL // copy
+    authURL.RawQuery = rawQuery
+    redirectURL := *s.redirectURL //copy
+    redirectURL.RawQuery = rawQuery
     fmt.Println("successfully added", app.Name)
+    fmt.Println("auth url:", authURL.String())
+    fmt.Println("redirect url:", redirectURL.String())
     fmt.Fprintln(w, "successfully added", app.Name)
 }
 
