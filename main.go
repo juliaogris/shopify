@@ -164,9 +164,9 @@ func (s *server) handleNew(w http.ResponseWriter, r *http.Request) {
     redirectURL := *s.redirectURL //copy
     redirectURL.RawQuery = rawQuery
     fmt.Println("successfully added", app.Name)
-    fmt.Println("auth url:", authURL.String())
-    fmt.Println("redirect url:", redirectURL.String())
     fmt.Fprintln(w, "successfully added", app.Name)
+    fmt.Fprintln(w, "auth url:", authURL.String())
+    fmt.Fprintln(w, "redirect url:", redirectURL.String())
 }
 
 func (s *server) version(w http.ResponseWriter, r *http.Request) {
